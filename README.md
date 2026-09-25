@@ -1,6 +1,8 @@
 # Removedor de Fundo
 
-Sprint 1 do backend em Python, usando Flask, `rembg` e Pillow para gerar imagens PNG com transparência.
+Sprint 2 da API web em Flask. O upload é processado inteiramente em memória e retorna um PNG com transparência.
+
+A rota aceita imagens PNG, JPEG e WEBP de até 16 MB no campo `arquivo`.
 
 ## Instalar
 
@@ -13,24 +15,20 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-A primeira execução pode baixar o modelo usado pelo `rembg`. Por padrão, o projeto usa `u2netp` para reduzir o consumo de memória; para escolher outro modelo compatível, defina `REMBG_MODEL` antes de executar.
+A primeira execução pode baixar o modelo do `rembg`. Por padrão, o projeto usa `u2netp` para reduzir o consumo de memória.
 
-## Testar pelo terminal
-
-```powershell
-python app.py "C:\caminho\imagem.jpg" "resultado.png"
-```
-
-Se o caminho de saída for omitido, o arquivo será salvo ao lado da entrada com o sufixo `_sem_fundo.png`.
-
-## Testar a API Flask
+## Executar o servidor
 
 ```powershell
-flask --app app run --debug
+python app.py
 ```
 
-Em outro terminal, envie a imagem e salve a resposta:
+A API ficará disponível em `http://127.0.0.1:5000`. Também é possível iniciar com `flask --app app run --debug`.
+
+## Testar a remoção
 
 ```powershell
-curl.exe -X POST -F "arquivo=@C:\caminho\imagem.jpg" http://127.0.0.1:5000/api/remover-fundo --output resultado.png
+curl.exe -X POST -F "arquivo=@C:\caminho\imagem.jpg" http://127.0.0.1:5000/remover-fundo --output resultado.png
 ```
+
+Respostas de erro retornam JSON: `400` para arquivo ausente ou corrompido, `413` para upload grande e `415` para formato não suportado.

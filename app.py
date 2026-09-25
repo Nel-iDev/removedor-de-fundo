@@ -1,4 +1,3 @@
-import argparse
 import io
 import os
 from functools import lru_cache
@@ -12,11 +11,49 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 MODEL_NAME = os.getenv("REMBG_MODEL", "u2netp")
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
+MAX_IMAGE_PIXELS = 40_000_000
+
+
+class InvalidImageData(ValueError):
+    pass
+
+
+class UnsupportedImageFormat(ValueError):
+    pass
 
 
 @lru_cache(maxsize=1)
 def _get_rembg_session():
     return rembg.new_session(MODEL_NAME)
+
+
+def _validate_image(image_data: bytes, filename: str) -> None:
+    if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise UnsupportedImageFormat
+
+    try:
+        with Image.open(io.BytesIO(image_data)) as image:
+            image_format = (image.format or "").upper()
+            if image_format not in ALLOWED_FORMATS:
+                raise UnsupportedImageFormat
+            if image.width * image.height > MAX_IMAGE_PIXELS:
+                raise InvalidImageData("A imagem possui dimensões grandes demais.")
+            image.verify()
+        with Image.open(io.BytesIO(image_data)) as image:
+            image.load()
+    except UnsupportedImageFormat:
+        raise
+    except (
+        Image.DecompressionBombError,
+        OSError,
+        SyntaxError,
+        ValueError,
+    ) as error:
+        raise InvalidImageData(
+            "O arquivo enviado não contém uma imagem válida."
+        ) from error
 
 
 def _remove_background_bytes(image_data: bytes) -> bytes:
@@ -52,16 +89,29 @@ def health_check():
     return jsonify({"status": "ok"})
 
 
+@app.post("/remover-fundo")
 @app.post("/api/remover-fundo")
 def remove_background_api():
     uploaded_file = request.files.get("arquivo")
+    if uploaded_file is None:
+        uploaded_file = request.files.get("file")
     if uploaded_file is None or not uploaded_file.filename:
-        return jsonify({"erro": "Envie uma imagem no campo 'arquivo'."}), 400
+        return jsonify({"erro": "Envie uma imagem no campo 'arquivo' ou 'file'."}), 400
+
+    image_data = uploaded_file.read()
+    if not image_data:
+        return jsonify({"erro": "O arquivo enviado está vazio."}), 400
 
     try:
-        image_data = uploaded_file.read()
-        if not image_data:
-            return jsonify({"erro": "O arquivo enviado está vazio."}), 400
+        _validate_image(image_data, uploaded_file.filename)
+    except UnsupportedImageFormat:
+        return jsonify(
+            {"erro": "Formato inválido. Envie uma imagem PNG, JPEG ou WEBP."}
+        ), 415
+    except InvalidImageData as error:
+        return jsonify({"erro": str(error)}), 400
+
+    try:
         output_data = _remove_background_bytes(image_data)
     except Exception:
         app.logger.exception("Não foi possível processar a imagem enviada.")
@@ -83,19 +133,10 @@ def payload_too_large(_error):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Remove o fundo de uma imagem e salva o resultado em PNG."
-    )
-    parser.add_argument("entrada", type=Path, help="Caminho da imagem de entrada.")
-    parser.add_argument("saida", type=Path, nargs="?", help="Caminho do PNG de saída.")
-    args = parser.parse_args()
-
-    try:
-        result = remove_background(args.entrada, args.saida)
-    except (FileNotFoundError, OSError, ValueError) as error:
-        parser.exit(1, f"Erro: {error}\n")
-
-    print(f"Imagem salva em: {result}")
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "0") == "1"
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":
