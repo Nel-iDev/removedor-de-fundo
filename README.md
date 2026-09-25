@@ -1,6 +1,6 @@
 # Removedor de Fundo
 
-Sprint 2 da API web em Flask. O upload é processado inteiramente em memória e retorna um PNG com transparência.
+Sprint 3 da aplicação web completa. A interface em Flask recebe a imagem, exibe o carregamento e oferece comparação e download do resultado.
 
 A rota aceita imagens PNG, JPEG e WEBP de até 16 MB no campo `arquivo`.
 
@@ -23,7 +23,7 @@ A primeira execução pode baixar o modelo do `rembg`. Por padrão, o projeto us
 python app.py
 ```
 
-A API ficará disponível em `http://127.0.0.1:5000`. Também é possível iniciar com `flask --app app run --debug`.
+A interface e a API ficarão disponíveis em `http://127.0.0.1:5000`. Abra esse endereço no navegador após iniciar o servidor. Também é possível iniciar com `flask --app app run --debug`.
 
 ## Testar a remoção
 
